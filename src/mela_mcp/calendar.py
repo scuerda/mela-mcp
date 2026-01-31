@@ -16,12 +16,13 @@ def run_applescript(script: str) -> str:
     return result.stdout.strip()
 
 
-def get_scheduled_meals(calendar_name: str, days: int = 7) -> list[dict]:
-    """Get meals scheduled in the next N days.
+def get_scheduled_meals(calendar_name: str, days: int = 7, past_days: int = 0) -> list[dict]:
+    """Get meals scheduled in a date range relative to today.
 
     Args:
         calendar_name: Name of the calendar to query
         days: Number of days to look ahead (default 7)
+        past_days: Number of days to look back (default 0)
 
     Returns:
         List of scheduled meals with title, date, time
@@ -32,7 +33,8 @@ def get_scheduled_meals(calendar_name: str, days: int = 7) -> list[dict]:
     script = f'''
     set startDate to current date
     set time of startDate to 0
-    set endDate to startDate + ({days} * days)
+    set startDate to startDate - ({past_days} * days)
+    set endDate to startDate + ({past_days + days} * days)
 
     set output to ""
     tell application "Calendar"

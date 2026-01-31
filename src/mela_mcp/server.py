@@ -1,10 +1,13 @@
 """Mela MCP Server - Recipe database and meal scheduling integration."""
 
 import os
+from datetime import datetime, timedelta
+
 from mcp.server.fastmcp import FastMCP
 
 from . import database
 from . import calendar
+from . import meal_log
 
 mcp = FastMCP("mela")
 
@@ -52,16 +55,18 @@ def list_recipes(filter: str = "all") -> list[dict]:
 
 
 @mcp.tool()
-def get_scheduled_meals(days: int = 7) -> list[dict]:
-    """Get meals scheduled in the next N days from the calendar.
+def get_scheduled_meals(days: int = 7, past_days: int = 0) -> list[dict]:
+    """Get meals scheduled from the calendar, including past and future dates.
 
     Args:
         days: Number of days to look ahead (default 7)
+        past_days: Number of days to look back (default 0). Use this to see
+            what was previously scheduled, e.g. past_days=30 to see the last month.
 
     Returns:
         List of scheduled meals with title, date, time
     """
-    return calendar.get_scheduled_meals(CALENDAR_NAME, days)
+    return calendar.get_scheduled_meals(CALENDAR_NAME, days, past_days)
 
 
 @mcp.tool()
@@ -76,7 +81,161 @@ def schedule_meal(recipe_name: str, date: str, time: str = "18:00") -> dict:
     Returns:
         Dict with success status and event details
     """
-    return calendar.schedule_meal(CALENDAR_NAME, recipe_name, date, time)
+    result = calendar.schedule_meal(CALENDAR_NAME, recipe_name, date, time)
+    if result.get("success"):
+        recipe_id = None
+        matches = database.search_recipes(recipe_name)
+        for m in matches:
+            if m["title"].lower() == recipe_name.lower():
+                recipe_id = m["id"]
+                break
+        meal_log.log_meal(
+            date=date,
+            title=recipe_name,
+            recipe_id=recipe_id,
+            status="planned",
+        )
+    return result
+
+
+@mcp.tool()
+def log_meal(
+    title: str,
+    date: str | None = None,
+    tags: str | None = None,
+    recipe_id: int | None = None,
+    portions: int | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Log a meal that was cooked or eaten.
+
+    Args:
+        title: Name of the meal
+        date: Date in YYYY-MM-DD format (defaults to today)
+        tags: Comma-separated tags (e.g. "quick,vegetarian")
+        recipe_id: Optional Mela recipe ID to link
+        portions: Number of portions made
+        notes: Any notes about the meal
+
+    Returns:
+        The created meal log entry
+    """
+    if date is None:
+        date = datetime.now().strftime("%Y-%m-%d")
+    return meal_log.log_meal(
+        date=date,
+        title=title,
+        recipe_id=recipe_id,
+        tags=tags,
+        status="cooked",
+        portions=portions,
+        notes=notes,
+    )
+
+
+@mcp.tool()
+def update_meal_log(
+    meal_id: int,
+    status: str | None = None,
+    notes: str | None = None,
+    tags: str | None = None,
+) -> dict:
+    """Update an existing meal log entry.
+
+    Args:
+        meal_id: ID of the meal log entry to update
+        status: New status (planned/cooked/skipped)
+        notes: Updated notes
+        tags: Updated comma-separated tags
+
+    Returns:
+        The updated meal log entry
+    """
+    return meal_log.update_meal(meal_id, status=status, notes=notes, tags=tags)
+
+
+@mcp.tool()
+def get_meal_history(
+    days: int = 30,
+    tags: str | None = None,
+    status: str | None = None,
+) -> list[dict]:
+    """Get meal log history.
+
+    Args:
+        days: Number of days to look back (default 30)
+        tags: Filter by comma-separated tags
+        status: Filter by status (planned/cooked/skipped)
+
+    Returns:
+        List of meal log entries matching the filters
+    """
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    return meal_log.get_meals(
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
+        tags=tags,
+    )
+
+
+@mcp.tool()
+def review_recent_meals(days: int = 7) -> list[dict]:
+    """Review recently planned meals that haven't been marked as cooked or skipped.
+
+    Args:
+        days: Number of days to look back (default 7)
+
+    Returns:
+        List of unreconciled planned meals
+    """
+    return meal_log.get_unreconciled(days=days)
+
+
+@mcp.tool()
+def get_meal_suggestions(days_back: int = 90) -> dict:
+    """Get meal suggestions based on cooking history.
+
+    Analyzes tag frequency and identifies meals that haven't been cooked recently
+    to help with meal planning variety.
+
+    Args:
+        days_back: Number of days of history to analyze (default 90)
+
+    Returns:
+        Dict with novelty_candidates (stale meals), tag_frequency, and
+        frequent_adhoc (meals without a recipe_id cooked 3+ times)
+    """
+    tag_freq = meal_log.get_tag_frequency(days=days_back)
+    stale = meal_log.get_stale_meals(days=days_back, min_gap=30)
+
+    # Find frequent ad-hoc meals (no recipe_id, cooked 3+ times)
+    all_meals = meal_log.get_meals(
+        start_date=(datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d"),
+    )
+    adhoc_counts: dict[str, int] = {}
+    for m in all_meals:
+        if m.get("recipe_id") is None and m.get("status") == "cooked":
+            adhoc_counts[m["title"]] = adhoc_counts.get(m["title"], 0) + 1
+    frequent_adhoc = [
+        {"title": title, "count": count}
+        for title, count in sorted(adhoc_counts.items(), key=lambda x: -x[1])
+        if count >= 3
+    ]
+
+    # Compute over/under-represented tags relative to average
+    avg = sum(tag_freq.values()) / len(tag_freq) if tag_freq else 0
+    over_tags = {t: c for t, c in tag_freq.items() if c > avg * 1.5} if avg else {}
+    under_tags = {t: c for t, c in tag_freq.items() if c < avg * 0.5} if avg else {}
+
+    return {
+        "novelty_candidates": stale,
+        "tag_frequency": tag_freq,
+        "over_represented_tags": over_tags,
+        "under_represented_tags": under_tags,
+        "frequent_adhoc_meals": frequent_adhoc,
+    }
 
 
 def main():
