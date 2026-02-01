@@ -88,6 +88,31 @@ def get_recipe(recipe_id: int) -> dict | None:
         conn.close()
 
 
+def get_recipe_uuid(recipe_id: int) -> str | None:
+    """Get the CloudKit UUID for a recipe by its primary key.
+
+    Args:
+        recipe_id: The recipe's primary key (Z_PK)
+
+    Returns:
+        The UUID string or None if not found
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """
+            SELECT ZCKRECORDNAME
+            FROM ANSCKRECORDMETADATA
+            WHERE ZENTITYPK = ? AND ZENTITYID = 4
+            """,
+            (recipe_id,)
+        )
+        row = cursor.fetchone()
+        return row["ZCKRECORDNAME"] if row else None
+    finally:
+        conn.close()
+
+
 def list_recipes(filter: str = "all") -> list[dict]:
     """List all recipes with optional filter.
 
