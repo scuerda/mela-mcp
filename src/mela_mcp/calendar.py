@@ -71,7 +71,7 @@ def get_scheduled_meals(calendar_name: str, days: int = 7, past_days: int = 0) -
     return meals
 
 
-def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00") -> dict:
+def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00", recipe_id: str | None = None) -> dict:
     """Schedule a meal on the calendar.
 
     Args:
@@ -79,12 +79,17 @@ def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00"
         title: Name of the meal/recipe
         date: Date in YYYY-MM-DD format
         time: Time in HH:MM 24-hour format (default 18:00)
+        recipe_id: Optional recipe ID to create a mela:// deep link
 
     Returns:
         Dict with success status and event details
     """
     year, month, day = date.split("-")
     hour, minute = time.split(":")
+
+    url_property = ""
+    if recipe_id is not None:
+        url_property = f', url:"mela://calendar/{recipe_id}"'
 
     script = f'''
     tell application "Calendar"
@@ -100,7 +105,7 @@ def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00"
 
         set endDate to eventDate + (1 * hours)
 
-        set newEvent to make new event at end of events of targetCalendar with properties {{summary:"{title}", start date:eventDate, end date:endDate}}
+        set newEvent to make new event at end of events of targetCalendar with properties {{summary:"{title}", start date:eventDate, end date:endDate{url_property}}}
 
         return "success"
     end tell

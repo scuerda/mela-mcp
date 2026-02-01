@@ -81,14 +81,14 @@ def schedule_meal(recipe_name: str, date: str, time: str = "18:00") -> dict:
     Returns:
         Dict with success status and event details
     """
-    result = calendar.schedule_meal(CALENDAR_NAME, recipe_name, date, time)
+    recipe_id = None
+    matches = database.search_recipes(recipe_name)
+    for m in matches:
+        if m["title"].lower() == recipe_name.lower():
+            recipe_id = m["id"]
+            break
+    result = calendar.schedule_meal(CALENDAR_NAME, recipe_name, date, time, recipe_id=recipe_id)
     if result.get("success"):
-        recipe_id = None
-        matches = database.search_recipes(recipe_name)
-        for m in matches:
-            if m["title"].lower() == recipe_name.lower():
-                recipe_id = m["id"]
-                break
         meal_log.log_meal(
             date=date,
             title=recipe_name,
