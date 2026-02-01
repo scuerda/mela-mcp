@@ -88,27 +88,23 @@ def get_recipe(recipe_id: int) -> dict | None:
         conn.close()
 
 
-def get_recipe_uuid(recipe_id: int) -> str | None:
-    """Get the CloudKit UUID for a recipe by its primary key.
+def get_recipe_zid(recipe_id: int) -> str | None:
+    """Get the ZID (source identifier) for a recipe by its primary key.
 
     Args:
         recipe_id: The recipe's primary key (Z_PK)
 
     Returns:
-        The UUID string or None if not found
+        The ZID string or None if not found
     """
     conn = get_connection()
     try:
         cursor = conn.execute(
-            """
-            SELECT ZCKRECORDNAME
-            FROM ANSCKRECORDMETADATA
-            WHERE ZENTITYPK = ? AND ZENTITYID = 4
-            """,
+            "SELECT ZID FROM ZRECIPEOBJECT WHERE Z_PK = ?",
             (recipe_id,)
         )
         row = cursor.fetchone()
-        return row["ZCKRECORDNAME"] if row else None
+        return row["ZID"] if row else None
     finally:
         conn.close()
 

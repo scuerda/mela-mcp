@@ -1,6 +1,7 @@
 """AppleScript-based calendar integration for meal scheduling."""
 
 import subprocess
+import uuid
 from datetime import datetime, timedelta
 
 
@@ -71,7 +72,7 @@ def get_scheduled_meals(calendar_name: str, days: int = 7, past_days: int = 0) -
     return meals
 
 
-def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00", recipe_id: str | None = None) -> dict:
+def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00", recipe_zid: str | None = None) -> dict:
     """Schedule a meal on the calendar.
 
     Args:
@@ -79,7 +80,7 @@ def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00"
         title: Name of the meal/recipe
         date: Date in YYYY-MM-DD format
         time: Time in HH:MM 24-hour format (default 18:00)
-        recipe_id: Optional recipe ID to create a mela:// deep link
+        recipe_zid: Optional recipe ZID to create a mela:// deep link
 
     Returns:
         Dict with success status and event details
@@ -88,8 +89,10 @@ def schedule_meal(calendar_name: str, title: str, date: str, time: str = "18:00"
     hour, minute = time.split(":")
 
     url_property = ""
-    if recipe_id is not None:
-        url_property = f', url:"mela://calendar/{recipe_id}"'
+    if recipe_zid is not None:
+        uid1 = str(uuid.uuid4()).upper()
+        uid2 = str(uuid.uuid4()).upper()
+        url_property = f', url:"mela://calendar/{uid1}:{uid2}/{recipe_zid}"'
 
     script = f'''
     tell application "Calendar"
