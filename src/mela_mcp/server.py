@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from . import database
 from . import calendar
 from . import meal_log
+from . import reminders
 
 mcp = FastMCP("mela")
 
@@ -238,6 +239,86 @@ def get_meal_suggestions(days_back: int = 90) -> dict:
         "under_represented_tags": under_tags,
         "frequent_adhoc_meals": frequent_adhoc,
     }
+
+
+@mcp.tool()
+def get_scheduled_ingredients(days: int = 7) -> list[dict]:
+    """Get raw ingredients for meals scheduled on the calendar.
+
+    Matches calendar event titles to Mela recipes and returns their
+    ingredient lists. Use this to build a grocery list from upcoming meals.
+
+    Args:
+        days: Number of days to look ahead (default 7)
+
+    Returns:
+        List of dicts per scheduled meal with title, date, ingredients
+        (raw text), and matched status (True, "fuzzy", or False).
+        Ingredients is None for meals with no matching recipe.
+    """
+    meals = calendar.get_scheduled_meals(CALENDAR_NAME, days)
+    titles = [m["title"] for m in meals]
+    if not titles:
+        return []
+
+    ingredient_data = database.get_ingredients_for_scheduled_meals(titles)
+    ingredient_map = {item["title"]: item for item in ingredient_data}
+
+    results = []
+    for meal in meals:
+        info = ingredient_map.get(meal["title"], {})
+        results.append({
+            "title": meal["title"],
+            "date": meal["date"],
+            "ingredients": info.get("ingredients"),
+            "matched": info.get("matched", False),
+            "recipe_title": info.get("recipe_title"),
+        })
+    return results
+
+
+@mcp.tool()
+def add_grocery_items(items: list[str], list_name: str = "Grocery") -> dict:
+    """Add items to the grocery list in Apple Reminders.
+
+    Args:
+        items: List of grocery item strings (e.g. ["2 onions", "500g chicken"])
+        list_name: Name of the Reminders list (default "Grocery")
+
+    Returns:
+        Dict with success status and count of items added
+    """
+    return reminders.add_reminders(items, list_name)
+
+
+@mcp.tool()
+def clear_grocery_list(list_name: str = "Grocery") -> dict:
+    """Clear all incomplete items from the grocery list in Apple Reminders.
+
+    Use this before repopulating with a fresh grocery list.
+
+    Args:
+        list_name: Name of the Reminders list (default "Grocery")
+
+    Returns:
+        Dict with success status and count of items removed
+    """
+    return reminders.clear_reminders(list_name)
+
+
+@mcp.tool()
+def get_grocery_list(list_name: str = "Grocery") -> dict:
+    """Get the current grocery list from Apple Reminders.
+
+    Returns all incomplete (unchecked) items from the list.
+
+    Args:
+        list_name: Name of the Reminders list (default "Grocery")
+
+    Returns:
+        Dict with success status and list of item names
+    """
+    return reminders.get_reminders(list_name)
 
 
 def main():

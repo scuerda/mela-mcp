@@ -109,6 +109,63 @@ def get_recipe_zid(recipe_id: int) -> str | None:
         conn.close()
 
 
+def get_ingredients_for_scheduled_meals(meal_titles: list[str]) -> list[dict]:
+    """Look up raw ingredients for a list of meal titles.
+
+    Uses case-insensitive exact match on ZTITLE, then LIKE fallback for
+    unmatched titles.
+
+    Args:
+        meal_titles: List of meal/recipe titles from the calendar
+
+    Returns:
+        List of dicts with title, ingredients (raw text or None),
+        and matched (True, "fuzzy", or False)
+    """
+    conn = get_connection()
+    try:
+        results = []
+        for title in meal_titles:
+            # Try exact case-insensitive match first
+            cursor = conn.execute(
+                "SELECT ZTITLE, ZINGREDIENTS FROM ZRECIPEOBJECT WHERE ZTITLE COLLATE NOCASE = ?",
+                (title,)
+            )
+            row = cursor.fetchone()
+            if row:
+                results.append({
+                    "title": title,
+                    "ingredients": row["ZINGREDIENTS"],
+                    "matched": True,
+                })
+                continue
+
+            # Fallback: LIKE match
+            cursor = conn.execute(
+                "SELECT ZTITLE, ZINGREDIENTS FROM ZRECIPEOBJECT WHERE ZTITLE LIKE ? LIMIT 1",
+                (f"%{title}%",)
+            )
+            row = cursor.fetchone()
+            if row:
+                results.append({
+                    "title": title,
+                    "recipe_title": row["ZTITLE"],
+                    "ingredients": row["ZINGREDIENTS"],
+                    "matched": "fuzzy",
+                })
+                continue
+
+            results.append({
+                "title": title,
+                "ingredients": None,
+                "matched": False,
+            })
+
+        return results
+    finally:
+        conn.close()
+
+
 def list_recipes(filter: str = "all") -> list[dict]:
     """List all recipes with optional filter.
 
