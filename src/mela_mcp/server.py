@@ -13,6 +13,7 @@ from . import reminders
 mcp = FastMCP("mela")
 
 CALENDAR_NAME = os.environ.get("MELA_CALENDAR_NAME", "Family")
+GROCERY_LIST = os.environ.get("MELA_GROCERY_LIST", "Groceries")
 
 
 @mcp.tool()
@@ -278,12 +279,12 @@ def get_scheduled_ingredients(days: int = 7) -> list[dict]:
 
 
 @mcp.tool()
-def add_grocery_items(items: list[str], list_name: str = "Grocery") -> dict:
+def add_grocery_items(items: list[str], list_name: str = GROCERY_LIST) -> dict:
     """Add items to the grocery list in Apple Reminders.
 
     Args:
         items: List of grocery item strings (e.g. ["2 onions", "500g chicken"])
-        list_name: Name of the Reminders list (default "Grocery")
+        list_name: Name of the Reminders list (default from MELA_GROCERY_LIST env var)
 
     Returns:
         Dict with success status and count of items added
@@ -292,13 +293,13 @@ def add_grocery_items(items: list[str], list_name: str = "Grocery") -> dict:
 
 
 @mcp.tool()
-def clear_grocery_list(list_name: str = "Grocery") -> dict:
+def clear_grocery_list(list_name: str = GROCERY_LIST) -> dict:
     """Clear all incomplete items from the grocery list in Apple Reminders.
 
     Use this before repopulating with a fresh grocery list.
 
     Args:
-        list_name: Name of the Reminders list (default "Grocery")
+        list_name: Name of the Reminders list (default from MELA_GROCERY_LIST env var)
 
     Returns:
         Dict with success status and count of items removed
@@ -307,13 +308,13 @@ def clear_grocery_list(list_name: str = "Grocery") -> dict:
 
 
 @mcp.tool()
-def get_grocery_list(list_name: str = "Grocery") -> dict:
+def get_grocery_list(list_name: str = GROCERY_LIST) -> dict:
     """Get the current grocery list from Apple Reminders.
 
     Returns all incomplete (unchecked) items from the list.
 
     Args:
-        list_name: Name of the Reminders list (default "Grocery")
+        list_name: Name of the Reminders list (default from MELA_GROCERY_LIST env var)
 
     Returns:
         Dict with success status and list of item names
