@@ -26,7 +26,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "mela": {
       "command": "uv",
-      "args": ["--directory", "/Users/sashacuerda/projects/mela-mcp", "run", "mela-mcp"],
+      "args": ["--directory", "<PATH-TO-THIS-REPO>", "run", "mela-mcp"],
       "env": {
         "MELA_CALENDAR_NAME": "Family",
         "MELA_GROCERY_LIST": "Groceries"
